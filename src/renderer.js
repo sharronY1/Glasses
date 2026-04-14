@@ -402,7 +402,7 @@ async function finishTimer() {
   // Persist updated stats
   stats.count        += 1;
   stats.totalMinutes += selectedDuration;
-  stats.date          = new Date().toDateString();
+  stats.date          = todayKey();
   await window.api.saveStats(stats);
 
   // Populate finished panel
@@ -560,11 +560,21 @@ window.api.onWindowMoving(() => {
 // 6. INITIALISATION
 // ═══════════════════════════════════════════════════════════════════
 
+/** Local calendar date YYYY-MM-DD (must match main process / focus-db) */
+function todayKey() {
+  const d = new Date();
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 async function init() {
   // Load persisted data from main process
   settings = await window.api.getSettings();
   const rawStats  = await window.api.getStats();
-  const today     = new Date().toDateString();
+  const today     = todayKey();
   stats = rawStats.date === today
     ? rawStats
     : { date: today, count: 0, totalMinutes: 0 };

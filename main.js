@@ -2,9 +2,16 @@ const { app, BrowserWindow, ipcMain, screen, Menu } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const Store = require('electron-store');
+const focusDb = require('./lib/focus-db');
 
 const store = new Store();
 let mainWindow = null;
+/** Lazy path to JSON DB (valid after app ready) */
+let focusDataFile = null;
+function getFocusDataFile() {
+  if (!focusDataFile) focusDataFile = focusDb.getDataFilePath();
+  return focusDataFile;
+}
 const WINDOW_WIDTH          = 145;
 const WINDOW_HEIGHT_FULL    = 265;
 const WINDOW_HEIGHT_COMPACT = 130;  // timer running, no footer
@@ -66,14 +73,46 @@ function savePosition() {
 // ── IPC Handlers ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('get-stats', () => {
-  const today = new Date().toDateString();
-  const raw = store.get('stats', { date: '', count: 0, totalMinutes: 0 });
-  return raw.date === today ? raw : { date: today, count: 0, totalMinutes: 0 };
+  const f = getFocusDataFile();
+  let out = focusDb.getTodayStats(f);
+  // One-time migration from electron-store (older builds)
+  if (out.count === 0 && out.totalMinutes === 0) {
+    const legacy = store.get('stats', null);
+    if (legacy && typeof legacy.count === 'number') {
+      try {
+        const legacyDay = new Date(legacy.date);
+        if (!Number.isNaN(legacyDay.getTime())
+            && focusDb.localDateKey(legacyDay) === focusDb.localDateKey()) {
+          focusDb.replaceTodayStats(f, {
+            date: focusDb.localDateKey(),
+            count: legacy.count,
+            totalMinutes: legacy.totalMinutes || 0,
+          });
+          out = focusDb.getTodayStats(f);
+        }
+      } catch (_) { /* ignore */ }
+    }
+  }
+  return out;
 });
 
 ipcMain.handle('save-stats', (_evt, stats) => {
-  stats.date = new Date().toDateString();
-  store.set('stats', stats);
+  const f = getFocusDataFile();
+  const key = focusDb.localDateKey();
+  const prev = focusDb.getTodayStats(f);
+  const nextCount = Number(stats.count) || 0;
+  const nextMin = Number(stats.totalMinutes) || 0;
+  let appendSessionMinutes = 0;
+  if (nextCount === prev.count + 1 && nextMin >= prev.totalMinutes) {
+    appendSessionMinutes = nextMin - prev.totalMinutes;
+  }
+  focusDb.replaceTodayStats(
+    f,
+    { date: key, count: nextCount, totalMinutes: nextMin },
+    { appendSessionMinutes }
+  );
+  // Keep electron-store in sync for migration / backup
+  store.set('stats', { date: key, count: nextCount, totalMinutes: nextMin });
 });
 
 ipcMain.handle('get-settings', () => {

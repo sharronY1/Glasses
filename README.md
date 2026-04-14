@@ -103,7 +103,10 @@ npm run build
 daydream/
 ├── main.js          # Electron 主进程（窗口管理、IPC、数据持久化）
 ├── preload.js       # 安全上下文桥（仅暴露必要 API 给渲染进程）
+├── lib/
+│   └── focus-db.js  # 今日专注统计 JSON 存储（轻量「本地库」）
 ├── package.json
+├── data/            # 开发时专注数据目录（已 .gitignore，自动生成）
 ├── assets/
 │   ├── icon.png     # 任务栏 / 开发用图标（256×256，灰白底 + 黑框像素眼镜）
 │   └── icon.ico     # Windows 安装包用图标（由脚本生成）
@@ -118,7 +121,8 @@ daydream/
 ### 关键设计决策
 
 - **`contextIsolation: true` + preload**：遵循 Electron 安全最佳实践，渲染进程无法直接访问 Node.js API。
-- **`electron-store`**：将设置和统计持久化到 `%APPDATA%\daydream\config.json`，无需数据库。
+- **`electron-store`**：窗口位置、设置等写入 `%APPDATA%\daydream\config.json`。
+- **专注统计 JSON**：`lib/focus-db.js` 写入 `data/focus-data.json`（开发，已 gitignore）或打包后 `%APPDATA%\daydream\focus-data.json`；按本地日期 `YYYY-MM-DD` 汇总，并保留最近若干条单次记录，无需 SQL。
 - **Canvas 像素画**：所有眼睛图形由 5×5 像素块拼成的二维数组驱动，方便扩展新皮肤或表情。
 - **眨眼节奏**：统一为每 5 分钟一次（闲置、专注、暂停状态相同）。
 - **`-webkit-app-region: drag`**：整个卡片均可拖动，交互元素用 `.no-drag` 类排除。
