@@ -1,0 +1,492 @@
+/* ═══════════════════════════════════════════════════════════════
+   Daydream — Pixel Focus Timer
+   Neutral gray UI; every interactive element has
+   -webkit-app-region: no-drag so the whole card can be dragged.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Custom properties ─────────────────────────────────────────── */
+:root {
+  /* Retro handheld vibe: translucent gray-green panel */
+  --bg:          rgba(172, 184, 160, 0.78);
+  --border:      rgba(46, 58, 40, 0.35);
+  /* Primary CTA — charcoal, not purple */
+  --accent:      #3a3a3a;
+  --accent-hover:#525252;
+  --text:        #1e241c;
+  /* Digits & big numbers — deep gray */
+  --digits:      #2f2f2f;
+  --text-dim:    #4d5a47;
+  --btn-bg:      rgba(183, 194, 172, 0.92);
+  --btn-hover:   rgba(170, 182, 160, 0.96);
+  --danger:      #b02040;
+  --radius:      4px;
+
+  /* pixel font stack: Press Start 2P covers digits/ASCII,
+     Microsoft YaHei UI handles Chinese on Windows */
+  --font: 'Press Start 2P', 'Microsoft YaHei UI', 'Microsoft YaHei', monospace;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* ── App shell ─────────────────────────────────────────────────── */
+#app {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px 8px;
+  position: relative;
+  overflow: hidden;
+
+  font-family: var(--font);
+  color: var(--text);
+  font-size: 8px;
+
+  /* entire card is draggable; children opt-out with .no-drag */
+  -webkit-app-region: drag;
+
+  /* crisp pixel rendering for canvas & scaled elements */
+  image-rendering: pixelated;
+}
+
+/* Interactive elements must opt out of drag */
+.no-drag,
+button,
+input,
+label,
+a {
+  -webkit-app-region: no-drag;
+}
+
+/* ── Eyes wrap ─────────────────────────────────────────────────── */
+.eyes-wrap {
+  position: relative;
+  width:  130px;
+  height:  55px;
+  flex-shrink: 0;
+}
+
+#eyesCanvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Pulsing glow during running state */
+.eyes-wrap.running {
+  animation: eyeGlow 2.8s ease-in-out infinite;
+}
+@keyframes eyeGlow {
+  0%,100% { filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.12)); }
+  50%      { filter: drop-shadow(0 0 7px rgba(0, 0, 0, 0.22)); }
+}
+
+/* Hover controls overlay */
+.eye-hover-controls {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: rgba(168, 180, 156, 0.86);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  /* Allow dragging window from eyes overlay; buttons stay no-drag */
+  -webkit-app-region: drag;
+}
+
+/* Reveal only when the overlay has .active AND parent is hovered */
+.eyes-wrap:hover .eye-hover-controls.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.hc-btn {
+  background: var(--btn-bg);
+  border: 1px solid var(--border);
+  color: var(--digits);
+  border-radius: var(--radius);
+  width: 28px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  transition: background 0.1s;
+}
+.hc-btn:hover { background: var(--btn-hover); }
+
+/* ── Panels ────────────────────────────────────────────────────── */
+.panel {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 6px 0 2px;
+}
+.panel.hidden { display: none; }
+
+/* Compact timer mode: only eyes + timer text */
+#app.compact-mode {
+  padding-top: 8px;
+  /* In compact mode we need reliable hover events across full panel */
+  -webkit-app-region: no-drag;
+}
+
+#app.compact-mode .panel {
+  justify-content: flex-start;
+  gap: 4px;
+  padding-top: 2px;
+  -webkit-app-region: no-drag;
+}
+
+/* Keep window draggable from the eyes area in compact mode */
+#app.compact-mode .eyes-wrap {
+  -webkit-app-region: drag;
+}
+
+/* Also allow dragging on timer number area */
+#app.compact-mode #panelTimer,
+#app.compact-mode #panelTimer .timer-digits,
+#app.compact-mode #panelTimer .timer-status {
+  -webkit-app-region: drag;
+}
+
+#app.compact-mode .timer-status {
+  display: none;
+}
+
+#app.compact-mode .timer-digits {
+  margin-top: 2px;
+  font-size: 18px;
+}
+
+/* Idle — duration picker */
+.duration-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.duration-val {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 48px;
+}
+.duration-val > span:first-child {
+  font-size: 20px;
+  color: var(--digits);
+  line-height: 1;
+}
+.dur-unit {
+  font-size: 7px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+
+.adj-btn {
+  background: var(--btn-bg);
+  border: 1px solid var(--border);
+  color: var(--digits);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: background 0.1s;
+}
+.adj-btn:hover { background: var(--btn-hover); }
+
+/* Running / Paused — timer */
+.timer-digits {
+  font-size: 22px;
+  color: var(--digits);
+  letter-spacing: 3px;
+  line-height: 1;
+}
+.timer-status {
+  font-size: 7px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+/* Finished — encouragement */
+.encourage-text {
+  font-size: 10px;
+  color: var(--text);
+  text-align: center;
+  line-height: 1.8;
+  max-width: 122px;
+  word-break: break-all;
+}
+.session-summary {
+  font-size: 7px;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.7;
+}
+
+/* ── Shared buttons ────────────────────────────────────────────── */
+.primary-btn {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 8px;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.primary-btn:hover { background: var(--accent-hover); }
+
+.secondary-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 7px;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+.secondary-btn:hover {
+  background: var(--btn-bg);
+  color: var(--text);
+}
+
+/* ── Footer ────────────────────────────────────────────────────── */
+
+/* Default (idle / finished): pinned to the bottom of the 265 px window */
+.footer {
+  width: calc(100% - 16px);
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+  height: 34px;
+  z-index: 9;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.12s ease;
+}
+
+/* Compact (timer running, window = 130 px): hide footer entirely */
+#app.compact-mode .footer {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* Compact + hovered (window = 158 px): footer flows below timer, no gap */
+#app.compact-mode.footer-expanded .footer {
+  /* Remove absolute positioning so footer sits right below the panel */
+  position: static;
+  width: 100%;
+  left: auto;
+  bottom: auto;
+  margin-top: 6px;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Don't let the panel stretch when footer is in flow */
+#app.compact-mode.footer-expanded .panel {
+  flex: 0 0 auto;
+}
+
+.foot-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 7px;
+  border-radius: var(--radius);
+  line-height: 1;
+  transition: color 0.12s, background 0.12s;
+}
+.foot-btn:hover {
+  color: var(--text);
+  background: var(--btn-bg);
+}
+.quit-btn:hover { color: var(--danger) !important; }
+
+/* ── Overlays (Stats & Settings) ───────────────────────────────── */
+.overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: rgba(176, 188, 164, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 18px 14px;
+  z-index: 20;
+}
+.overlay.hidden { display: none; }
+
+.ov-title {
+  font-size: 9px;
+  color: var(--text);
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+
+/* Stats rows */
+.ov-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Settings fields */
+.ov-field {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ov-field-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ov-lbl {
+  font-size: 7px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.ov-val {
+  font-size: 10px;
+  color: var(--digits);
+}
+
+/* Compact stats overlay: same height as compact timer window */
+#app.overlay-stats-compact #overlayStats {
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 10px 10px 8px;
+}
+
+#app.overlay-stats-compact #overlayStats .ov-title {
+  margin-bottom: 0;
+}
+
+#app.overlay-stats-compact #overlayStats .ov-row {
+  min-height: 20px;
+}
+
+#app.overlay-stats-compact #overlayStats #closeStatsBtn {
+  margin-top: 4px;
+}
+
+.ov-input {
+  background: var(--btn-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 4px 6px;
+  font-family: var(--font);
+  font-size: 8px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.ov-input:focus { border-color: rgba(0, 0, 0, 0.35); }
+.ov-input-num {
+  width: 56px;
+  text-align: center;
+}
+
+.dur-inline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ov-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Toggle switch ─────────────────────────────────────────────── */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.toggle-thumb {
+  position: absolute;
+  inset: 0;
+  background: var(--btn-bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  transition: background 0.18s, border-color 0.18s;
+}
+.toggle-thumb::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--text-dim);
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.18s, background 0.18s;
+}
+.toggle input:checked + .toggle-thumb {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.toggle input:checked + .toggle-thumb::after {
+  transform: translateX(16px);
+  background: #fff;
+}

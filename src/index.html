@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <!--
+    CSP: allow Google Fonts for the pixel font face;
+    all scripts are local ('self').
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 style-src  'self' 'unsafe-inline' https://fonts.googleapis.com;
+                 font-src   'self' https://fonts.gstatic.com;
+                 img-src    'self' data:;">
+  <title>Daydream</title>
+  <!--
+    Press Start 2P gives crisp retro pixel lettering for ASCII/digits.
+    Chinese characters fall through to Microsoft YaHei UI (Windows default).
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+        rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── Eyes ─────────────────────────────────────────── -->
+  <div class="eyes-wrap" id="eyesWrap">
+    <canvas id="eyesCanvas" width="130" height="55"></canvas>
+
+    <!--
+      Hover overlay: only rendered (pointer-events on) when
+      .eye-hover-controls has class "active" AND parent is hovered.
+    -->
+    <div class="eye-hover-controls" id="eyeHoverControls">
+      <button class="hc-btn no-drag" id="pauseResumeBtn" title="暂停 / 继续">⏸</button>
+      <button class="hc-btn no-drag" id="stopBtn"        title="停止计时">⏹</button>
+    </div>
+  </div>
+
+  <!-- ── Panel: Idle (duration picker + start) ─────────── -->
+  <div class="panel" id="panelIdle">
+    <div class="duration-row">
+      <button class="adj-btn no-drag" id="decBtn">−</button>
+      <div class="duration-val">
+        <span id="durationDisplay">25</span>
+        <span class="dur-unit">min</span>
+      </div>
+      <button class="adj-btn no-drag" id="incBtn">+</button>
+    </div>
+    <button class="primary-btn no-drag" id="startBtn">开始专注</button>
+  </div>
+
+  <!-- ── Panel: Running / Paused ───────────────────────── -->
+  <div class="panel hidden" id="panelTimer">
+    <div class="timer-digits" id="timerDisplay">25:00</div>
+    <div class="timer-status" id="timerStatus">专注中…</div>
+  </div>
+
+  <!-- ── Panel: Finished ───────────────────────────────── -->
+  <div class="panel hidden" id="panelFinished">
+    <div class="encourage-text" id="encourageDisplay">你真棒！</div>
+    <div class="session-summary" id="sessionSummary"></div>
+    <button class="primary-btn no-drag" id="againBtn">再来一次</button>
+  </div>
+
+  <!-- ── Footer ────────────────────────────────────────── -->
+  <div class="footer">
+    <button class="foot-btn no-drag" id="statsBtn"    title="今日统计">📊</button>
+    <button class="foot-btn quit-btn no-drag" id="quitBtn" title="退出">✕</button>
+    <button class="foot-btn no-drag" id="settingsBtn" title="设置">⚙</button>
+  </div>
+
+  <!-- ── Overlay: Stats ────────────────────────────────── -->
+  <div class="overlay hidden" id="overlayStats">
+    <div class="ov-title">今日统计</div>
+    <div class="ov-row">
+      <span class="ov-lbl">专注次数</span>
+      <span class="ov-val" id="statCount">0 次</span>
+    </div>
+    <div class="ov-row">
+      <span class="ov-lbl">专注时长</span>
+      <span class="ov-val" id="statMinutes">0 分钟</span>
+    </div>
+    <button class="secondary-btn no-drag" id="closeStatsBtn">关闭</button>
+  </div>
+
+  <!-- ── Overlay: Settings ─────────────────────────────── -->
+  <div class="overlay hidden" id="overlaySettings">
+    <div class="ov-title">设置</div>
+
+    <div class="ov-field">
+      <label class="ov-lbl">鼓励语（最多12字）</label>
+      <input class="ov-input no-drag" type="text"
+             id="encourageInput" maxlength="12" placeholder="你真棒！">
+    </div>
+
+    <div class="ov-field ov-field-row">
+      <label class="ov-lbl">戴眼镜</label>
+      <label class="toggle no-drag">
+        <input type="checkbox" id="glassesToggle">
+        <span class="toggle-thumb"></span>
+      </label>
+    </div>
+
+    <div class="ov-field ov-field-row">
+      <label class="ov-lbl">默认时长</label>
+      <span class="dur-inline">
+        <input class="ov-input ov-input-num no-drag" type="number"
+               id="defaultDurInput" min="1" max="120" value="25">
+        <span class="ov-lbl">min</span>
+      </span>
+    </div>
+
+    <div class="ov-actions">
+      <button class="primary-btn no-drag"   id="saveSettingsBtn">保存</button>
+      <button class="secondary-btn no-drag" id="closeSettingsBtn">取消</button>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<script src="renderer.js"></script>
+</body>
+</html>
